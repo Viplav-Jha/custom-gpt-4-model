@@ -13,7 +13,8 @@ export async function POST(req: Request) {
   const chatCompletion = await openai.chat.completions.create({
     messages: [{ role: "user", content }],
     model: "gpt-4-vision-preview",
-    stream:true
+    stream:true,
+    max_tokens:4096
   });
   console.log({content});
 
