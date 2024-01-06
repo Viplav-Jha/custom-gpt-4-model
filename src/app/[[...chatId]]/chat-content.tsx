@@ -1,7 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ChatInput from '@/components/chat-input';
+import remarkGfm from 'remark-gfm';
+import Markdown from 'react-markdown';
 
 export default function ChatContent() {
+
+    const [assistantResponse, setAssistanResponse] = useState<string>("")
+
   const handleSubmit = async (value: string, file?: File) => {
     try {
       const res = await fetch("/api/message", {
@@ -19,13 +24,14 @@ export default function ChatContent() {
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let finalResult = "";
+    //   let finalResult = "";
 
       while (true) {
         const { value, done } = await reader.read();
         const text = decoder.decode(value);
-        finalResult += text;
-        console.log(finalResult);
+        setAssistanResponse(currentValue=>currentValue + text)
+        // finalResult += text;
+        // console.log(finalResult);
 
         if (done) {
           break
@@ -40,6 +46,8 @@ export default function ChatContent() {
     <>
       <div className="max-w-4xl w-full mx-auto flex-1 px-10 py-5 overflow-x-hidden overflow-y-auto">
         {/* Render AI content here */}
+        {assistantResponse}
+        <Markdown remarkPlugins={[remarkGfm]}>{assistantResponse}</Markdown>
       </div>
       <ChatInput onSubmit={handleSubmit} />
     </>
