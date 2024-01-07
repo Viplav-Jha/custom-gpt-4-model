@@ -1,5 +1,10 @@
 import OpenAI from "openai";
+
 import { OpenAIStream, StreamingTextResponse } from 'ai'
+
+import { initialProgrammerMessages } from "./message";
+
+export const runtime = 'edge'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -8,16 +13,13 @@ const openai = new OpenAI({
 export async function POST(req: Request) {
   const { content } = await req.json();
 
-  // send  that openai
-
   const chatCompletion = await openai.chat.completions.create({
-    messages: [{ role: "user", content }],
-    model: "gpt-4-vision-preview",
-    stream:true,
-    max_tokens:4096
+    messages: [...initialProgrammerMessages, { role: "user", content }],
+    model: "",
+    stream: true,
+    max_tokens: 4096
   });
-  console.log({content});
-
+   
   const stream = OpenAIStream(chatCompletion)
  
   return new StreamingTextResponse(stream)
