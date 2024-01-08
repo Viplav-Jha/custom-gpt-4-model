@@ -1,20 +1,59 @@
-import React, { useState } from 'react';
-import ChatInput from '@/components/chat-input';
-import remarkGfm from 'remark-gfm';
-import Markdown from 'react-markdown';
+"use client";
+
+import { useState, useRef } from "react";
+
+import ChatInput from "@/components/chat-input";
+
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus as dark } from "react-syntax-highlighter/dist/esm/styles/prism";
+
+import { convertFileToBase64 } from "@/lib/utils";
 
 export default function ChatContent() {
-
-    const [assistantResponse, setAssistanResponse] = useState<string>("")
+  const [assisnantResponse, setAssistantResponse] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const handleSubmit = async (value: string, file?: File) => {
+    // upload it somewhere like s3
+    // image url
+
+    setIsLoading(true);
+    setAssistantResponse("");
+
+    let body = "";
+    if (file) {
+      const imageUrl = await convertFileToBase64(file);
+      const content = [
+        {
+          type: "image_url",
+          image_url: {
+            url: imageUrl,
+          },
+        },
+        {
+          type: "text",
+          text: value,
+        },
+      ];
+
+      body = JSON.stringify({ content });
+    } else {
+      body = JSON.stringify({ content: value });
+    }
+
+    // console.log("submit", value, file);
     try {
-      const res = await fetch("/api/message", {
+      abortControllerRef.current = new AbortController();
+      const res = await fetch(`/api/message`, {
         method: "POST",
-        body: JSON.stringify({ content: value }),
+        body: body,
         headers: {
           "Content-Type": "application/json",
         },
+        signal: abortControllerRef.current.signal,
       });
 
       if (!res.ok || !res.body) {
@@ -23,33 +62,69 @@ export default function ChatContent() {
       }
 
       const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-    //   let finalResult = "";
 
+      const decoder = new TextDecoder();
       while (true) {
         const { value, done } = await reader.read();
+
         const text = decoder.decode(value);
-        setAssistanResponse(currentValue=>currentValue + text)
-        // finalResult += text;
-        // console.log(finalResult);
+        setAssistantResponse((currentValue) => currentValue + text);
 
         if (done) {
-          break
+          break;
         }
       }
-    } catch (error) {
-      console.error("An error occurred:", error);
+    } catch (error: any) {
+      if (error.name !== "AbortError") {
+        alert("Error sending message");
+      }
     }
+    abortControllerRef.current = null;
+    setIsLoading(false);
+  };
+
+  const handleStop = () => {
+    if (!abortControllerRef.current) {
+      return;
+    }
+    abortControllerRef.current.abort();
+    abortControllerRef.current = null;
   };
 
   return (
     <>
-      <div className="max-w-4xl w-full mx-auto flex-1 px-10 py-5 overflow-x-hidden overflow-y-auto">
-        {/* Render AI content here */}
-        {assistantResponse}
-        <Markdown remarkPlugins={[remarkGfm]}>{assistantResponse}</Markdown>
+      <div className="max-w-4xl w-full mx-auto flex-1 px-10 py-5 overflow-x-hidden overflow-y-auto prose dark:prose-invert">
+        <Markdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            code(props) {
+              const { children, className, node, ...rest } = props;
+              const match = /language-(\w+)/.exec(className || "");
+              return match ? (
+                <SyntaxHighlighter
+                  PreTag="div"
+                  children={String(children).replace(/\n$/, "")}
+                  language={match[1]}
+                  style={dark}
+                  wrapLines={true}
+                  wrapLongLines={true}
+                />
+              ) : (
+                <code {...rest} className={className}>
+                  {children}
+                </code>
+              );
+            },
+          }}
+        >
+          {assisnantResponse}
+        </Markdown>
       </div>
-      <ChatInput onSubmit={handleSubmit} />
+      <ChatInput
+        onSubmit={handleSubmit}
+        isStreaming={isLoading}
+        onStop={handleStop}
+      />
     </>
   );
 }
